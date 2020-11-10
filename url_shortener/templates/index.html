@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>skrtr | URL Shortener</title>
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css">
+
+  <style>
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      min-height: 90vh;
+    }
+    .title a {
+      color: inherit;
+    }
+    .title {
+      font-family: sans-serif;
+      font-size: 8rem;
+      font-weight: 700;
+      text-align: center;
+      white-space: nowrap;
+      letter-spacing: 1px;
+      margin-bottom: 30px;
+    }
+    .hero {
+      width: 100%;
+      text-align: center;
+    }
+    .form {
+      position: relative;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .button {
+      margin-top: 30px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      position: absolute;
+      left: 50%;
+      top: 50px;
+      transform: translateX(-50%);
+    }
+    .wrapper {
+      margin: 30px 0;
+    }
+    .footer {
+      flex: 1;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="container" id="app">
+    <h1 class="title"><a href="/">skrtr</a></h1>
+
+    <div class="hero">
+      <div class="form">
+        <input type="hidden" id="short-url" :value="result.short_url">
+        <input v-model="url" @keyup.enter="sendUrl" type="text" placeholder="Enter your URL..." autocomplete="off">
+        <span class="error" v-show="!validateUrl">Incorrect URL</span>
+        <button class="button" @click="sendUrl" :disabled="!validateUrl || url == ''">Generate</button>
+      </div>
+
+      <div v-if="!isEmpty(result)" class="wrapper">
+        <div><b>Short URL:</b> <a :href="result.short_url">${ result.short_url }</a></div>
+        <div><b>Stats:</b> <a :href="getStatsUrl(result.short_url)">${ getStatsUrl(result.short_url) }</a></div>
+      </div>
+
+      <div v-if="!isEmpty(stats)" class="wrapper">
+        <div><b>Short URL:</b> <a :href="stats.short_url">${ stats.short_url }</a></div>
+        <div><b>Long URL:</b> <a :href="stats.long_url">${ stats.long_url }</a></div>
+        <div><b>Creation date:</b> ${ formatDate(stats.date_created) }</div>
+        <div><b>Count of clicks:</b> ${ stats.click_count }</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Coded with ❤ by <a href="https://github.com/XRain777">XRain777</a></p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.0/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  <script>
+    //axios.defaults.baseURL = "http://s.xrain.ru/";
+    axios.defaults.baseURL = "http://127.0.0.1:8123";
+    axios.defaults.headers.common['X-CSRF-TOKEN'] = '{{ csrf_token }}';
+    axios.defaults.xsrfHeaderName = "X-CSRFTOKEN";
+    axios.defaults.xsrfCookieName = 'csrftoken';
+
+    new Vue({
+      el: "#app",
+      delimiters: ['${', '}'],
+      data () {
+        return {
+          url: '',
+          result: {},
+          stats: {}
+        }
+      },
+      methods: {
+        notify(text) {
+          alert(text);
+          console.log(text);
+        },
+        sendUrl() {
+          if (!this.validateUrl) {
+            return;
+          }
+
+          axios.post('create', {
+            url: this.url,
+            csrfmiddlewaretoken: '{{ csrf_token }}'
+          })
+          .then(({ data }) => {
+            this.result = data;
+            this.copyShortUrl();
+          })
+          .catch((error) => {
+            this.notify(error);
+          })
+        },
+        isEmpty(obj) {
+          return Object.keys(obj).length === 0;
+        },
+        formatDate(date) {
+          return new Date(date).toLocaleDateString();
+        },
+        getStatsUrl(url) {
+          let baseUrl = url.substring(0, url.lastIndexOf("/"));
+          let alias = url.substring(url.lastIndexOf("/") + 1, url.length);
+          return `${baseUrl}?stats=${alias}`;
+        },
+        copyShortUrl () {
+          let elementToCopy = document.querySelector('#short-url');
+          elementToCopy.setAttribute('type', 'text');
+          elementToCopy.select();
+
+          try {
+            var successful = document.execCommand('copy');
+            var msg = successful ? 'successful' : 'unsuccessful';
+          } catch (err) {
+            this.notify('Oops, unable to copy');
+          }
+
+          elementToCopy.setAttribute('type', 'hidden');
+          window.getSelection().removeAllRanges();
+        }
+      },
+      computed: {
+        validateUrl() {
+          const regex = RegExp('(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+@]*)*(\\?[&a-z\\d%_.~+=-@]*)?(\\#[-a-z\\d_@]*)?$', 'i');
+          return this.url === '' || this.url.match(regex);
+        }
+      },
+      created() {
+        const queryParams = new URLSearchParams(window.location.search);
+        const shortUrl = queryParams.get('stats');
+
+        if (shortUrl) {
+          axios.get(`${shortUrl}/stats`)
+            .then(({ data }) => {
+              this.stats = data
+              this.url = data.long_url
+            })
+            .catch((error) => {
+              this.notify(error)
+            })
+        }
+      }
+    })
+  </script>
+</body>
+</html>
