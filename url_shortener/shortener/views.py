@@ -53,3 +53,12 @@ def stats(request, shorturl):
     link = links[0]
     context = { 'long_url': link.url, 'short_url': request.build_absolute_uri(reverse('shortener:goto', args=([link.short_url()]))), 'click_count': link.click_count, 'date_created': link.date_created }
     return JsonResponse(context)
+
+@require_GET
+def qrcode(request, shorturl):
+    links = Link.objects.have_short_url(shorturl)
+    if links.count() == 0:
+        return HttpResponse('Short URL doesn\t exist.', status=404)
+    link = links[0]
+    context = { 'short_url': request.build_absolute_uri(reverse('shortener:goto', args=([link.short_url()])))}
+    return render(request, 'qr.html', context=context)
