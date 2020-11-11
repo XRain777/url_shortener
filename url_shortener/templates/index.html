@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/alertifyjs@1.13.1/build/css/alertify.min.css"/>
 
   <style>
     .container {
@@ -57,6 +58,29 @@
       flex: 1;
       text-align: center;
     }
+    .input-group {
+      position: relative;
+      display: flex;
+    }
+    .copy-button {
+      margin-top: 7px;
+      padding-left: 5px;
+      width: 25px;
+      position: absolute;
+      right: 5px;
+      cursor: pointer;
+      background-color: #fff;
+      z-index: 1;
+    }
+    .copy-button:hover svg {
+      color: #9b4dca;
+    }
+    .disabled {
+      pointer-events: none;
+    }
+    .alertify-notifier {
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -65,10 +89,17 @@
 
     <div class="hero">
       <div class="form">
-        <input type="hidden" id="short-url" :value="result.short_url">
-        <input v-model="url" @keyup.enter="sendUrl" type="text" placeholder="Enter your URL..." autocomplete="off">
+        <input type="hidden" id="short-url" :value="shortUrl">
+        <div class="input-group">
+          <input v-model="url" @keyup.enter="sendUrl" type="text" placeholder="Enter your URL..." autocomplete="off">
+          <div class="copy-button" @click="copyShortUrl" :class="{ disabled: isEmpty(shortUrl) }">
+            <svg fill="none" viewBox="0 0 19 22">
+              <path fill="currentColor" d="M12 22H3.4c-2 0-3.5-1.5-3.5-3.4V6.9C0 5 1.6 3.5 3.5 3.5H12c2 0 3.6 1.5 3.6 3.4v11.7c0 1.9-1.6 3.4-3.6 3.4zM3.4 5.2c-1 0-1.7.8-1.7 1.7v11.7c0 1 .8 1.7 1.7 1.7H12c1 0 1.8-.8 1.8-1.7V6.9c0-1-.8-1.7-1.8-1.7H3.5zM19 16.4v-13C19 1.5 17.4 0 15.5 0H5.7c-.5 0-.9.4-.9.9 0 .4.4.8.9.8h9.8c1 0 1.7.8 1.7 1.7v13c0 .5.4.9 1 .9.4 0 .8-.4.8-.9z"></path>
+            </svg>
+          </div>
+        </div>
         <span class="error" v-show="!validateUrl">Incorrect URL</span>
-        <button class="button" @click="sendUrl" :disabled="!validateUrl || url == ''">Generate</button>
+        <button class="button" @click="sendUrl" :disabled="disabledButton">Generate</button>
       </div>
 
       <div v-if="!isEmpty(result)" class="wrapper">
@@ -86,14 +117,14 @@
   </main>
 
   <footer class="footer">
-    <p>Coded with ❤ by <a href="https://github.com/XRain777">XRain777</a></p>
+    <p>Coded with ❤ by <a href="https://github.com/XRain777/url_shortener">XRain777</a></p>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.0/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alertifyjs@1.13.1/build/alertify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
   <script>
-    //axios.defaults.baseURL = "http://s.xrain.ru/";
-    axios.defaults.baseURL = "http://127.0.0.1:8123";
+    axios.defaults.baseURL = "http://s.xrain.ru/";
     axios.defaults.headers.common['X-CSRF-TOKEN'] = '{{ csrf_token }}';
     axios.defaults.xsrfHeaderName = "X-CSRFTOKEN";
     axios.defaults.xsrfCookieName = 'csrftoken';
@@ -104,14 +135,15 @@
       data () {
         return {
           url: '',
+          shortUrl: '',
           result: {},
           stats: {}
         }
       },
       methods: {
         notify(text) {
-          alert(text);
           console.log(text);
+          alert(text);
         },
         sendUrl() {
           if (!this.validateUrl) {
@@ -119,12 +151,11 @@
           }
 
           axios.post('create', {
-            url: this.url,
-            csrfmiddlewaretoken: '{{ csrf_token }}'
+            url: this.url
           })
           .then(({ data }) => {
             this.result = data;
-            this.copyShortUrl();
+            this.shortUrl = data.short_url;
           })
           .catch((error) => {
             this.notify(error);
@@ -149,6 +180,7 @@
           try {
             var successful = document.execCommand('copy');
             var msg = successful ? 'successful' : 'unsuccessful';
+            alertify.success('Success copied to clipboard');
           } catch (err) {
             this.notify('Oops, unable to copy');
           }
@@ -161,6 +193,9 @@
         validateUrl() {
           const regex = RegExp('(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+@]*)*(\\?[&a-z\\d%_.~+=-@]*)?(\\#[-a-z\\d_@]*)?$', 'i');
           return this.url === '' || this.url.match(regex);
+        },
+        disabledButton() {
+          return !this.validateUrl || this.url == '';
         }
       },
       created() {
@@ -170,12 +205,13 @@
         if (shortUrl) {
           axios.get(`${shortUrl}/stats`)
             .then(({ data }) => {
-              this.stats = data
-              this.url = data.long_url
+              this.stats = data;
+              this.url = data.long_url;
+              this.shortUrl = data.short_url;
             })
             .catch((error) => {
               this.notify(error)
-            })
+            });
         }
       }
     })
