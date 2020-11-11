@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -101,8 +102,8 @@
             </svg>
           </div>
         </div>
-        <span class="error" v-show="!validateUrl">Incorrect URL</span>
-        <button class="button" @click="sendUrl" :disabled="disabledButton">Generate</button>
+        <span class="error" v-show="!isEmpty(error)">${ error }</span>
+        <button class="button" @click="sendUrl" :disabled="disabledButton || stopped">Generate</button>
       </div>
 
       <div v-if="!isEmpty(result)" class="wrapper">
@@ -142,7 +143,28 @@
           shortUrl: '',
           result: {},
           stats: {},
-          qrCode: ''
+          qrCode: '',
+          error: '',
+          stopped: false
+        }
+      },
+      watch: {
+        url: function (val) {
+          if (this.url == '') {
+            this.error = '';
+          }
+
+          if (this.url != '' && this.url.length <= axios.defaults.baseURL.length) {
+            this.error = 'The link is already short 😉';
+          }
+
+          if (!this.validateUrl) {
+            this.error = 'Incorrect URL';
+            this.stopped = true;
+            return;
+          }
+
+          this.stopped = false;
         }
       },
       methods: {
@@ -151,7 +173,7 @@
           alert(text);
         },
         sendUrl() {
-          if (!this.validateUrl) {
+          if (this.stopped) {
             return;
           }
 
@@ -186,7 +208,7 @@
           try {
             var successful = document.execCommand('copy');
             var msg = successful ? 'successful' : 'unsuccessful';
-            alertify.success('Success copied to clipboard');
+            alertify.success('Copied to clipboard 📋');
           } catch (err) {
             this.notify('Oops, unable to copy');
           }
