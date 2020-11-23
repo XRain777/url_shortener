@@ -16,3 +16,7 @@ uwsgi_pass 127.0.0.1:8080;
 ## Demo
 
 See at http://s.xrain.ru/
+
+## About us
+
+![https://www.youtube.com/watch?v=dQw4w9WgXcQ](https://i.imgur.com/rYf6aUY.jpg)
